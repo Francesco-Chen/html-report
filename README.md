@@ -7,6 +7,10 @@ A lightweight, self-hosted, single-file PHP dashboard for collecting, organizing
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](#)
 
+<p align="center">
+  <img src="assets/preview.png" alt="HTML Report Hub Dashboard Preview" width="850">
+</p>
+
 ---
 
 ## 🌟 Highlights
