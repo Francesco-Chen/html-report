@@ -1,0 +1,35 @@
+# SQLite Database files
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Uploaded content (keep directory structure & .htaccess)
+document/*
+!document/.htaccess
+!document/.gitkeep
+
+covers/*
+!covers/.htaccess
+!covers/.gitkeep
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs & temp files
+*.log
+/tmp/
+
+# IDE / Editor configuration
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
