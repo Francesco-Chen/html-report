@@ -1279,6 +1279,7 @@ $currentEndpointUrl = $scheme . '://' . $host . $scriptPath;
                     $filename = $card['filename'] ? htmlspecialchars($card['filename'], ENT_QUOTES, 'UTF-8') : '';
                     $cover = $card['cover_image'] ? htmlspecialchars($card['cover_image'], ENT_QUOTES, 'UTF-8') : '';
                     $token = htmlspecialchars($card['token'], ENT_QUOTES, 'UTF-8');
+                    $isoTime = !empty($card['updated_at']) ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string)$card['updated_at'])) : '';
                     $updatedAt = htmlspecialchars(substr((string)$card['updated_at'], 0, 16), ENT_QUOTES, 'UTF-8');
                     $bgGradient = $gradients[$id % count($gradients)];
                     $hasReport = !empty($filename);
@@ -1305,7 +1306,7 @@ $currentEndpointUrl = $scheme . '://' . $host . $scriptPath;
                         <div class="card-title" title="<?= $title ?>"><?= $title ?></div>
                         <div class="card-meta">
                             <span>#<?= $id ?></span>
-                            <span>Updated <?= $updatedAt ?></span>
+                            <span class="card-meta-time" data-time="<?= $isoTime ?>" data-prefix="Updated ">Updated <?= $updatedAt ?></span>
                         </div>
                     </div>
 
@@ -1508,12 +1509,44 @@ $currentEndpointUrl = $scheme . '://' . $host . $scriptPath;
         let sortableInstance = null;
         let currentEditingCard = null;
 
-        // Initialize SortableJS drag-and-drop sorting (active only in Manage Mode)
+        // Initialize UI and user local timezone formatting
         document.addEventListener('DOMContentLoaded', () => {
             const savedMode = sessionStorage.getItem('report_ui_mode') || 'view';
             initSortable();
             switchMode(savedMode);
+            renderAllLocalTimes();
         });
+
+        // Convert UTC timestamp to visitor local timezone
+        function formatLocalTime(isoStr) {
+            if (!isoStr) return '';
+            const d = new Date(isoStr);
+            if (isNaN(d.getTime())) return '';
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+        function renderAllLocalTimes() {
+            const userTz = (() => {
+                try {
+                    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+                } catch (_) {
+                    return '';
+                }
+            })();
+
+            document.querySelectorAll('.card-meta-time[data-time]').forEach(el => {
+                const timeVal = el.getAttribute('data-time');
+                const formatted = formatLocalTime(timeVal);
+                if (formatted) {
+                    const prefix = el.getAttribute('data-prefix') || '';
+                    el.textContent = `${prefix}${formatted}`;
+                    if (userTz) {
+                        el.title = `${prefix}${formatted} (${userTz})`;
+                    }
+                }
+            });
+        }
 
         function initSortable() {
             const grid = document.getElementById('cardGrid');
