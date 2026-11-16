@@ -122,9 +122,9 @@ function safeUnlink(?string $relativePath, string $allowedBaseDir): void {
 }
 
 /**
- * Save HTML content or uploaded HTML file
+ * Save HTML content or uploaded HTML file (supports in-place overwrite to keep URL permanent)
  */
-function saveHtmlDocument(?array $fileInfo, ?string $rawHtml, string $titleForFile): array {
+function saveHtmlDocument(?array $fileInfo, ?string $rawHtml, string $titleForFile, ?string $existingRelativePath = null): array {
     $htmlContent = null;
 
     // Check file upload first
@@ -148,10 +148,18 @@ function saveHtmlDocument(?array $fileInfo, ?string $rawHtml, string $titleForFi
 
     $extractedTitle = extractHtmlTitle($htmlContent);
     $finalTitle = ($titleForFile !== '') ? $titleForFile : ($extractedTitle ?? 'Untitled_Report');
-    $safeName = sanitizeFilenameTitle($finalTitle);
-    $filename = time() . '_' . mt_rand(100, 999) . '_' . $safeName . '.html';
-    $relativePath = 'document/' . $filename;
-    $fullPath = DOC_DIR . '/' . $filename;
+
+    // If card already has an HTML file, overwrite it in place so the access URL remains permanently fixed
+    if (!empty($existingRelativePath)) {
+        $relativePath = ltrim($existingRelativePath, '/');
+        $fullPath = __DIR__ . '/' . $relativePath;
+    } else {
+        // Initial upload: generate standard timestamped filename
+        $safeName = sanitizeFilenameTitle($finalTitle);
+        $filename = time() . '_' . mt_rand(100, 999) . '_' . $safeName . '.html';
+        $relativePath = 'document/' . $filename;
+        $fullPath = DOC_DIR . '/' . $filename;
+    }
 
     if (file_put_contents($fullPath, $htmlContent) === false) {
         throw new RuntimeException("Failed to write HTML file. Please check permissions for document/ directory.");
@@ -280,13 +288,14 @@ if ($method === 'POST') {
             $newCover = $card['cover_image'];
             $extractedTitle = null;
 
-            // 1. Process HTML update
+            // 1. Process HTML update (overwrite in place to keep URL permanent)
             if ($hasHtmlUpload) {
                 $preliminaryTitle = $inputTitle !== '' ? $inputTitle : $card['title'];
-                $docResult = saveHtmlDocument($htmlFile, $rawHtml, $preliminaryTitle);
+                $docResult = saveHtmlDocument($htmlFile, $rawHtml, $preliminaryTitle, $card['filename']);
                 if ($docResult['relative_path']) {
-                    // Delete old HTML file
-                    safeUnlink($card['filename'], DOC_DIR);
+                    if ($card['filename'] && $card['filename'] !== $docResult['relative_path']) {
+                        safeUnlink($card['filename'], DOC_DIR);
+                    }
                     $newFilename = $docResult['relative_path'];
                     $extractedTitle = $docResult['extracted_title'];
                 }
@@ -299,15 +308,6 @@ if ($method === 'POST') {
                 $finalTitle = $extractedTitle;
             } else {
                 $finalTitle = $card['title'];
-            }
-
-            // If title was not passed but extracted from HTML, rename file accordingly
-            if ($hasHtmlUpload && $inputTitle === '' && $extractedTitle !== null && $newFilename) {
-                $safeTitleName = sanitizeFilenameTitle($finalTitle);
-                $renamedRelative = 'document/' . time() . '_' . $safeTitleName . '.html';
-                if (@rename(__DIR__ . '/' . $newFilename, __DIR__ . '/' . $renamedRelative)) {
-                    $newFilename = $renamedRelative;
-                }
             }
 
             // 3. Process cover image update
@@ -456,9 +456,11 @@ if ($method === 'POST') {
                 $hasFileUpload = ($htmlFile && isset($htmlFile['error']) && $htmlFile['error'] !== UPLOAD_ERR_NO_FILE);
                 if ($hasFileUpload || ($updateSourceFlag && $rawHtml !== null)) {
                     if ($hasFileUpload || trim($rawHtml) !== '') {
-                        $docRes = saveHtmlDocument($htmlFile, $rawHtml, $inputTitle !== '' ? $inputTitle : $card['title']);
+                        $docRes = saveHtmlDocument($htmlFile, $rawHtml, $inputTitle !== '' ? $inputTitle : $card['title'], $card['filename']);
                         if ($docRes['relative_path']) {
-                            safeUnlink($card['filename'], DOC_DIR);
+                            if ($card['filename'] && $card['filename'] !== $docRes['relative_path']) {
+                                safeUnlink($card['filename'], DOC_DIR);
+                            }
                             $newFilename = $docRes['relative_path'];
                             $extractedTitle = $docRes['extracted_title'];
                         }
@@ -1307,9 +1309,9 @@ $currentEndpointUrl = $scheme . '://' . $host . $scriptPath;
                         </div>
                     </div>
 
-                    <!-- View Mode Click Overlay (Opens report in new tab) -->
+                    <!-- View Mode Click Overlay (Opens report in new tab with cache-busting timestamp param) -->
                     <?php if ($hasReport): ?>
-                        <a class="card-view-link" href="<?= $filename ?>" target="_blank" rel="noopener" title="Click to open '<?= $title ?>' in a new tab"></a>
+                        <a class="card-view-link" href="<?= $filename ?>?v=<?= strtotime($card['updated_at'] ?? 'now') ?>" target="_blank" rel="noopener" title="Click to open '<?= $title ?>' in a new tab"></a>
                     <?php else: ?>
                         <a class="card-view-link" href="javascript:void(0);" onclick="showToast('This placeholder card has no HTML report content yet', 'error')" title="No report content yet"></a>
                     <?php endif; ?>
